@@ -1,0 +1,35 @@
+name: build-test
+on:
+  push:
+    branches: [build-test]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Setup vcpkg (full history for the manifest baseline)
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP\vcpkg"
+          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          "VCPKG_ROOT=$env:RUNNER_TEMP\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Configure
+        run: cmake --preset release
+      - name: Build
+        run: cmake --build build/release --config Release
+      - name: Collect
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Get-ChildItem -Path build/release -Recurse -Filter SKSEMenuFramework.dll | Copy-Item -Destination out
+          Get-ChildItem out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SKSEMenuFramework-dll
+          path: out/
